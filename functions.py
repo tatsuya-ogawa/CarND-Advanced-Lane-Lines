@@ -59,7 +59,7 @@ def warp(img):
     M = cv2.getPerspectiveTransform(src, dst)
     Minv = cv2.getPerspectiveTransform(dst, src)
     warped = cv2.warpPerspective(img, M, (w, h), flags=cv2.INTER_LINEAR)
-    return warped,Minv
+    return warped, Minv
 
 
 def mag_thresh_sobel(img, sobel_kernel=3, mag_thresh=(0, 255)):
@@ -201,7 +201,7 @@ def sliding_window(binary_warped):
     return out_img, leftx, lefty, rightx, righty
 
 
-def draw_lane(image, binary_image, leftx, lefty, rightx, righty,Minv):
+def draw_lane(image, binary_image, leftx, lefty, rightx, righty, Minv):
     # Fit a second order polynomial to each
     left_fit = np.polyfit(lefty, leftx, 2)
     right_fit = np.polyfit(righty, rightx, 2)
@@ -217,10 +217,35 @@ def draw_lane(image, binary_image, leftx, lefty, rightx, righty,Minv):
 
     warp_zero = np.zeros_like(binary_image).astype(np.uint8)
     color_warp = np.dstack((warp_zero, warp_zero, warp_zero))
-    cv2.fillPoly(color_warp, np.int_([pts]), (0,255, 0))
+    cv2.fillPoly(color_warp, np.int_([pts]), (0, 255, 0))
 
     newwarp = cv2.warpPerspective(color_warp, Minv, (image.shape[1], image.shape[0]))
-    return cv2.addWeighted(image, 1, newwarp, 0.3, 0)
+    result = cv2.addWeighted(image, 1, newwarp, 0.3, 0)
+
+    def calc_radius():
+        ym_per_pix = 3.048/100 # meters per pixel in y dimension, lane line is 10 ft = 3.048 meters
+        xm_per_pix = 3.7/378 # meters per pixel in x dimension, lane width is 12 ft = 3.7 meters
+        y_eval = np.max(ploty)
+        # Fit new polynomials to x,y in world space
+        left_fit_cr = np.polyfit(ploty * ym_per_pix, left_fitx * xm_per_pix, 2)
+        right_fit_cr = np.polyfit(ploty * ym_per_pix, right_fitx * xm_per_pix, 2)
+        # Calculate the new radii of curvature
+        left_curverad = ((1 + (2 * left_fit_cr[0] * y_eval * ym_per_pix + left_fit_cr[1]) ** 2) ** 1.5) / np.absolute(
+            2 * left_fit_cr[0])
+        right_curverad = (
+                             (1 + (
+                                 2 * right_fit_cr[0] * y_eval * ym_per_pix + right_fit_cr[
+                                     1]) ** 2) ** 1.5) / np.absolute(
+            2 * right_fit_cr[0])
+        # Now our radius of curvature is in meters
+        return left_curverad, right_curverad
+
+    rad_l, rad_r = calc_radius()
+
+    text = 'Curve radius: ' + '{:04.2f}'.format((rad_l + rad_r) / 2) + 'm'
+    cv2.putText(result, text, (40, 70), cv2.FONT_HERSHEY_DUPLEX, 1.5, (200, 255, 155), 2, cv2.LINE_AA)
+    return result
+
 
 def sliding_window2(binary_warped):
     window_width = 15
@@ -269,7 +294,6 @@ def sliding_window2(binary_warped):
             r_center = np.argmax(conv_signal[r_min_index:r_max_index]) + r_min_index - offset
             # Add what we found for that layer
             window_centroids.append((l_center, r_center))
-
         return window_centroids
 
     window_centroids = find_window_centroids(binary_warped, window_width, window_height, margin)
