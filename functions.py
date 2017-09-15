@@ -108,8 +108,6 @@ def sliding_window(binary_warped):
     # Assuming you have created a warped binary image called "binary_warped"
     # Take a histogram of the bottom half of the image
     histogram = np.sum(binary_warped[int(binary_warped.shape[0] // 2):, :], axis=0)
-    # Create an output image to draw on and  visualize the result
-    out_img = np.dstack((binary_warped, binary_warped, binary_warped)) * 255
     # Find the peak of the left and right halves of the histogram
     # These will be the starting point for the left and right lines
     midpoint = np.int(histogram.shape[0] // 2)
@@ -117,6 +115,7 @@ def sliding_window(binary_warped):
     leftx_base = np.argmax(histogram[quarter_point:midpoint]) + quarter_point
     rightx_base = np.argmax(histogram[midpoint:(midpoint + quarter_point)]) + midpoint
 
+    out_windows = []
     # Choose the number of sliding windows
     nwindows = 10
     # Set height of windows
@@ -146,10 +145,12 @@ def sliding_window(binary_warped):
         win_xright_low = rightx_current - margin
         win_xright_high = rightx_current + margin
         # Draw the windows on the visualization image
-        cv2.rectangle(out_img, (win_xleft_low, win_y_low), (win_xleft_high, win_y_high),
-                      (0, 255, 0), 2)
-        cv2.rectangle(out_img, (win_xright_low, win_y_low), (win_xright_high, win_y_high),
-                      (0, 255, 0), 2)
+        out_windows.append(
+            ((win_xleft_low, win_y_low), (win_xleft_high, win_y_high))
+        )
+        out_windows.append(
+            ((win_xright_low, win_y_low), (win_xright_high, win_y_high))
+        )
         # Identify the nonzero pixels in x and y within the window
         good_left_inds = ((nonzeroy >= win_y_low) & (nonzeroy < win_y_high) &
                           (nonzerox >= win_xleft_low) & (nonzerox < win_xleft_high)).nonzero()[0]
@@ -169,10 +170,23 @@ def sliding_window(binary_warped):
     right_lane_inds = np.concatenate(right_lane_inds)
 
     # Extract left and right line pixel positions
+    return out_windows, left_lane_inds, right_lane_inds
+
+
+def draw_window(binary_image, windows, left_lane_inds, right_lane_inds):
+    nonzero = binary_image.nonzero()
+    nonzeroy = np.array(nonzero[0])
+    nonzerox = np.array(nonzero[1])
     leftx = nonzerox[left_lane_inds]
     lefty = nonzeroy[left_lane_inds]
     rightx = nonzerox[right_lane_inds]
     righty = nonzeroy[right_lane_inds]
+
+    out_img = np.dstack((binary_image, binary_image, binary_image)) * 255
+
+    for window in windows:
+        cv2.rectangle(out_img, window[0], window[1],
+                      (0, 255, 0), 2)
 
     out_img[nonzeroy[left_lane_inds], nonzerox[left_lane_inds]] = [255, 0, 0]
     out_img[nonzeroy[right_lane_inds], nonzerox[right_lane_inds]] = [0, 0, 255]
@@ -184,11 +198,18 @@ def sliding_window(binary_warped):
     right_fitx = (right_fit[0] * ploty ** 2 + right_fit[1] * ploty + right_fit[2]).astype(np.int32)
     out_img[ploty.astype(np.int32), left_fitx] = [0, 255, 0]
     out_img[ploty.astype(np.int32), right_fitx] = [0, 255, 0]
+    return out_img
 
-    return out_img, leftx, lefty, rightx, righty
+def draw_lane(image, binary_image, left_lane_inds, right_lane_inds, Minv):
+    nonzero = binary_image.nonzero()
+    nonzeroy = np.array(nonzero[0])
+    nonzerox = np.array(nonzero[1])
 
+    leftx = nonzerox[left_lane_inds]
+    lefty = nonzeroy[left_lane_inds]
+    rightx = nonzerox[right_lane_inds]
+    righty = nonzeroy[right_lane_inds]
 
-def draw_lane(image, binary_image, leftx, lefty, rightx, righty, Minv):
     # Fit a second order polynomial to each
     left_fit = np.polyfit(lefty, leftx, 2)
     right_fit = np.polyfit(righty, rightx, 2)

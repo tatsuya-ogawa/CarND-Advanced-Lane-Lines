@@ -59,7 +59,7 @@ To demonstrate this step, I will describe how I apply the distortion correction 
 
 #### 2. Describe how (and identify where in your code) you used color transforms, gradients or other methods to create a thresholded binary image.  Provide an example of a binary image result.
 
-I used a combination of color and gradient thresholds to generate a binary image (thresholding steps at lines # through # in `another_file.py`).  Here's an example of my output for this step.  (note: this is not actually from one of the test images)
+I used a combination of color(HLS) and gradient thresholds and magnitude threshold to generate a binary image (thresholding steps at lines 43,62,78 in `functions.py`).  Here's an example of my output for this step.  (note: this is not actually from one of the test images)
 
 * Sobel with direction
 ![dir_sobel](./output_images/dir_sobel_test1.jpg)
@@ -109,13 +109,13 @@ Then I did some other stuff and fit my lane lines with a 2nd order polynomial ki
 
 #### 5. Describe how (and identify where in your code) you calculated the radius of curvature of the lane and the position of the vehicle with respect to center.
 
-I did this in lines # through # in my code in `my_other_file.py`
+I did this in lines 237 through 251 in my code in `functions.py`
 
 #### 6. Provide an example image of your result plotted back down onto the road such that the lane area is identified clearly.
 
-I implemented this step in lines # through # in my code in `yet_another_file.py` in the function `map_lane()`.  Here is an example of my result on a test image:
+I implemented this step in lines 203 through 265 in my code in `funcitons.py` in the function `draw_lane()`.  Here is an example of my result on a test image:
 
-![windowed](./output_images/lane_test1.jpg)
+![lane](./output_images/lane_test1.jpg)
 
 ---
 
@@ -123,7 +123,7 @@ I implemented this step in lines # through # in my code in `yet_another_file.py`
 
 #### 1. Provide a link to your final video output.  Your pipeline should perform reasonably well on the entire project video (wobbly lines are ok but no catastrophic failures that would cause the car to drive off the road!).
 
-Here's a [link to my video result](./project_video.mp4)
+Here's a ![link to my video result](./project_video_output.mp4)
 
 ---
 
