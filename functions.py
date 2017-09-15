@@ -32,30 +32,8 @@ def undistort(image, mtx, dist):
     return cv2.undistort(image, mtx, dist, None, mtx)
 
 
-def warp(img):
-    # src = np.float32([
-    #     [1170 - 480, shape[0] - 280],
-    #     [1170, shape[0]],
-    #     [150, shape[0]],
-    #     [150 + 450, shape[0] - 280],
-    # ])
-    # dst = np.float32([
-    #     [1170 - 480, shape[0] - 280],
-    #     [1170 - 480, shape[0]],
-    #     [150 + 450, shape[0]],
-    #     [150 + 450, shape[0] - 280],
-    # ])
-
+def warp(img, src, dst):
     h, w = img.shape[:2]
-    src = np.float32([(575, 464),
-                      (707, 464),
-                      (258, 682),
-                      (1049, 682)])
-    dst = np.float32([(450, 0),
-                      (w - 450, 0),
-                      (450, h),
-                      (w - 450, h)])
-
     M = cv2.getPerspectiveTransform(src, dst)
     Minv = cv2.getPerspectiveTransform(dst, src)
     warped = cv2.warpPerspective(img, M, (w, h), flags=cv2.INTER_LINEAR)
@@ -64,7 +42,7 @@ def warp(img):
 
 def mag_thresh_sobel(img, sobel_kernel=3, mag_thresh=(0, 255)):
     # Convert to grayscale
-    gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     # Take both Sobel x and y gradients
     sobelx = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=sobel_kernel)
     sobely = cv2.Sobel(gray, cv2.CV_64F, 0, 1, ksize=sobel_kernel)
@@ -83,7 +61,7 @@ def mag_thresh_sobel(img, sobel_kernel=3, mag_thresh=(0, 255)):
 
 def dir_threshold_sobel(img, sobel_kernel=3, thresh=(0, np.pi / 2)):
     # Grayscale
-    gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     # Calculate the x and y gradients
     sobelx = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=sobel_kernel)
     sobely = cv2.Sobel(gray, cv2.CV_64F, 0, 1, ksize=sobel_kernel)
@@ -99,7 +77,7 @@ def dir_threshold_sobel(img, sobel_kernel=3, thresh=(0, np.pi / 2)):
 
 def hls_abs_sobel(img, s_thresh=(170, 255), sx_thresh=(20, 100)):
     # Convert to HSV color space and separate the V channel
-    hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HLS).astype(np.float)
+    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HLS).astype(np.float)
     l_channel = hsv[:, :, 1]
     s_channel = hsv[:, :, 2]
     # Sobel x
@@ -198,6 +176,15 @@ def sliding_window(binary_warped):
 
     out_img[nonzeroy[left_lane_inds], nonzerox[left_lane_inds]] = [255, 0, 0]
     out_img[nonzeroy[right_lane_inds], nonzerox[right_lane_inds]] = [0, 0, 255]
+
+    ploty = np.linspace(0, out_img.shape[0] - 1, out_img.shape[0])
+    left_fit = np.polyfit(lefty, leftx, 2)
+    right_fit = np.polyfit(righty, rightx, 2)
+    left_fitx = (left_fit[0] * ploty ** 2 + left_fit[1] * ploty + left_fit[2]).astype(np.int32)
+    right_fitx = (right_fit[0] * ploty ** 2 + right_fit[1] * ploty + right_fit[2]).astype(np.int32)
+    out_img[ploty.astype(np.int32), left_fitx] = [0, 255, 0]
+    out_img[ploty.astype(np.int32), right_fitx] = [0, 255, 0]
+
     return out_img, leftx, lefty, rightx, righty
 
 
@@ -208,6 +195,7 @@ def draw_lane(image, binary_image, leftx, lefty, rightx, righty, Minv):
 
     # Generate x and y values for plotting
     ploty = np.linspace(0, binary_image.shape[0] - 1, binary_image.shape[0])
+
     left_fitx = left_fit[0] * ploty ** 2 + left_fit[1] * ploty + left_fit[2]
     right_fitx = right_fit[0] * ploty ** 2 + right_fit[1] * ploty + right_fit[2]
 
@@ -222,9 +210,10 @@ def draw_lane(image, binary_image, leftx, lefty, rightx, righty, Minv):
     newwarp = cv2.warpPerspective(color_warp, Minv, (image.shape[1], image.shape[0]))
     result = cv2.addWeighted(image, 1, newwarp, 0.3, 0)
 
+    ym_per_pix = 3.048 / 100  # meters per pixel in y dimension, lane line is 10 ft = 3.048 meters
+    xm_per_pix = 3.7 / 378  # meters per pixel in x dimension, lane width is 12 ft = 3.7 meters
+
     def calc_radius():
-        ym_per_pix = 3.048/100 # meters per pixel in y dimension, lane line is 10 ft = 3.048 meters
-        xm_per_pix = 3.7/378 # meters per pixel in x dimension, lane width is 12 ft = 3.7 meters
         y_eval = np.max(ploty)
         # Fit new polynomials to x,y in world space
         left_fit_cr = np.polyfit(ploty * ym_per_pix, left_fitx * xm_per_pix, 2)
@@ -240,10 +229,18 @@ def draw_lane(image, binary_image, leftx, lefty, rightx, righty, Minv):
         # Now our radius of curvature is in meters
         return left_curverad, right_curverad
 
-    rad_l, rad_r = calc_radius()
+    def calc_dist():
+        center = binary_image.shape[1] / 2
+        position = (left_fitx[binary_image.shape[0] - 1] + right_fitx[binary_image.shape[0] - 1]) / 2
+        return (position - center) * xm_per_pix
 
-    text = 'Curve radius: ' + '{:04.2f}'.format((rad_l + rad_r) / 2) + 'm'
+    rad_l, rad_r = calc_radius()
+    dist = calc_dist()
+
+    text = 'Curve radius: {:04.2f}'.format((rad_l + rad_r) / 2) + 'm'
     cv2.putText(result, text, (40, 70), cv2.FONT_HERSHEY_DUPLEX, 1.5, (200, 255, 155), 2, cv2.LINE_AA)
+    text = '{:04.3f} m {} of center'.format(abs(dist), 'right' if dist > 0 else 'left')
+    cv2.putText(result, text, (40, 120), cv2.FONT_HERSHEY_DUPLEX, 1.5, (200, 255, 155), 2, cv2.LINE_AA)
     return result
 
 
