@@ -131,4 +131,5 @@ Here's a ![link to my video result](./project_video_output.mp4)
 
 #### 1. Briefly discuss any problems / issues you faced in your implementation of this project.  Where will your pipeline likely fail?  What could you do to make it more robust?
 
-Here I'll talk about the approach I took, what techniques I used, what worked and why, where the pipeline might fail and how I might improve it if I were going to pursue this project further.  
+Here I'll talk about the approach I took, what techniques I used is initial position of sliding window(line 115 through 116 of functions.py),the reason why is the side of a road is incorrectly detected as lane line.
+I think if road condition of image was worse or shadows appeared , it might get more noise,and sliding window might correct incorrect histgrams.That will be improved by erode and dialate image processing ![link](http://opencv-python-tutroals.readthedocs.io/en/latest/py_tutorials/py_imgproc/py_morphological_ops/py_morphological_ops.html)
